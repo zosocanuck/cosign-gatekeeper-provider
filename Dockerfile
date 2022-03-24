@@ -31,6 +31,7 @@ FROM $BASEIMAGE
 WORKDIR /
 
 COPY --from=builder /go/src/github.com/developer-guy/cosign-gatekeeper-provider .
+ADD ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 USER 65532:65532
 

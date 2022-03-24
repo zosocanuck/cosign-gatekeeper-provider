@@ -19,8 +19,8 @@ spec:
         run: cosign-gatekeeper-provider
     spec:
       containers:
-      - image: devopps/cosign-gatekeeper-provider:latest
-        imagePullPolicy: IfNotPresent
+      - image: zosocanuck/cosign-gatekeeper-provider:certs
+        imagePullPolicy: Never
         name: cosign-gatekeeper-provider
         ports:
         - containerPort: 8090

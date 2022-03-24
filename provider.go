@@ -15,6 +15,7 @@
 package main
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -23,7 +24,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
 
-	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
 	"github.com/sigstore/cosign/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/pkg/cosign"
 )
@@ -82,10 +82,18 @@ func validate(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		checkedSignatures, bundleVerified, err := cosign.VerifyImageSignatures(ctx, ref, &cosign.CheckOpts{
-			RekorURL:           "https://rekor.sigstore.dev",
+		pemBytes, err := ioutil.ReadFile("/etc/ssl/certs/ca-certificates.crt")
+		if err != nil {
+			sendResponse(nil, fmt.Sprintf("ERROR: %v", err), w)
+			return
+		}
+
+		rPool := x509.NewCertPool()
+		rPool.AppendCertsFromPEM(pemBytes)
+
+		checkedSignatures, _, err := cosign.VerifyImageSignatures(ctx, ref, &cosign.CheckOpts{
 			RegistryClientOpts: co,
-			RootCerts:          fulcio.GetRoots(),
+			RootCerts:          rPool,
 		})
 
 		if err != nil {
@@ -94,7 +102,7 @@ func validate(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if bundleVerified {
+		if len(checkedSignatures) > 0 {
 			fmt.Println("signature verified for:", key)
 			fmt.Printf("%d number of valid signatures found for %s, found signatures: %v\n", len(checkedSignatures), key, checkedSignatures)
 			results = append(results, externaldata.Item{

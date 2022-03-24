@@ -16,4 +16,4 @@ spec:
     spec:
       containers:
       - name: valid
-        image: devopps/alpine:signed
+        image: zosocanuck/cert-manager-dashboard:0.1
