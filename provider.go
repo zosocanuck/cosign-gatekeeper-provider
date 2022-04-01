@@ -23,6 +23,9 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/open-policy-agent/frameworks/constraint/pkg/externaldata"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/sigstore/cosign/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/pkg/cosign"
@@ -73,6 +76,38 @@ func validate(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// creates the in-cluster config
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		sendResponse(nil, fmt.Sprintf("ERROR: %v", err), w)
+		return
+	}
+
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		sendResponse(nil, fmt.Sprintf("ERROR: %v", err), w)
+		return
+	}
+
+	// get namespace
+	nsBytes, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	if err != nil {
+		sendResponse(nil, fmt.Sprintf("ERROR: %v", err), w)
+		return
+	}
+
+	s, err := clientset.CoreV1().Secrets(string(nsBytes[:])).Get(ctx, "kyverno-chain", metaV1.GetOptions{})
+	if err != nil {
+		sendResponse(nil, fmt.Sprintf("ERROR: %v", err), w)
+		return
+	}
+
+	/*for key, value := range s.Data {
+		// key is string, value is []byte
+		fmt.Printf("    %s: %s\n", key, value)
+	}*/
+
 	// iterate over all keys
 	for _, key := range providerRequest.Request.Keys {
 		fmt.Println("verify signature for:", key)
@@ -82,14 +117,32 @@ func validate(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		pemBytes, err := ioutil.ReadFile("/etc/ssl/certs/ca-certificates.crt")
+		/*pemBytes, err := ioutil.ReadFile("/etc/ssl/certs/chain.crt")
 		if err != nil {
 			sendResponse(nil, fmt.Sprintf("ERROR: %v", err), w)
 			return
-		}
+		}*/
 
 		rPool := x509.NewCertPool()
-		rPool.AppendCertsFromPEM(pemBytes)
+		//rPool.AppendCertsFromPEM(pemBytes)
+		rPool.AppendCertsFromPEM(s.Data["chain"])
+
+		/*r, _ := ioutil.ReadFile("/etc/ssl/certs/dev.crt")
+		block, _ := pem.Decode(r)
+		cert, _ := x509.ParseCertificate(block.Bytes)
+
+		opts := x509.VerifyOptions{
+			Roots: rPool,
+			KeyUsages: []x509.ExtKeyUsage{
+				x509.ExtKeyUsageCodeSigning,
+			},
+		}
+
+		if _, err := cert.Verify(opts); err != nil {
+			fmt.Println(err)
+			sendResponse(nil, fmt.Sprintf("ERROR: %v", err), w)
+			return
+		}*/
 
 		checkedSignatures, _, err := cosign.VerifyImageSignatures(ctx, ref, &cosign.CheckOpts{
 			RegistryClientOpts: co,

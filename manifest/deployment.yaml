@@ -18,6 +18,7 @@ spec:
       labels:
         run: cosign-gatekeeper-provider
     spec:
+      serviceAccountName: cosign-gatekeeper-sa
       containers:
       - image: zosocanuck/cosign-gatekeeper-provider:certs
         imagePullPolicy: Never
